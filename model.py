@@ -3,7 +3,6 @@ import tensorflow as tf
 from aggregators import SumAggregator, ConcatAggregator
 
 
-
 class GIKT(object):
     def __init__(self, args):
 
@@ -35,7 +34,7 @@ class GIKT(object):
         self.sequence_lens = tf.compat.v1.placeholder(tf.int32, [None])
         self.hist_neighbor_index = tf.compat.v1.placeholder(tf.int32, [None, self.max_step, self.hist_neighbor_num])
         self.batch_size = tf.shape(self.features_answer_index)[0]
-        self.feature_embedding = tf.get_variable("feature_embedding", [self.feature_answer_size, self.embedding_size], initializer=tf.contrib.layers.xavier_initializer())
+        self.feature_embedding = tf.compat.v1.get_variable("feature_embedding", [self.feature_answer_size, self.embedding_size], initializer=tf.initializers.glorot_uniform())
 
         if args.aggregator == 'sum':
             self.aggregator_class = SumAggregator
@@ -52,7 +51,7 @@ class GIKT(object):
         questions_index = select_feature_index[:, :-1, 1]
         next_questions_index =select_feature_index[:,1:,1]
         skill_index = select_feature_index[:,:-1,0]
-        next_skill_index =select_feature_index[:,1:,0]
+        next_skill_index = select_feature_index[:,1:,0]
 
         self.input_questions_embedding = tf.nn.embedding_lookup(self.feature_embedding, questions_index) # [batch_size,seq_len,d]
         self.next_questions_embedding = tf.nn.embedding_lookup(self.feature_embedding,next_questions_index) # [batch_size,seq_len,select_size-1,d]
@@ -100,11 +99,10 @@ class GIKT(object):
         # create rnn cell
         hidden_layers = []
         for idx, hidden_size in enumerate(self.hidden_neurons):
-            lstm_layer = tf.contrib.rnn.BasicLSTMCell(num_units=hidden_size,name='input_rnn%d'%idx)
-            hidden_layer = tf.contrib.rnn.DropoutWrapper(cell=lstm_layer,
-                                                         output_keep_prob=self.keep_prob)
+            lstm_layer = tf.compat.v1.nn.rnn_cell.BasicLSTMCell(num_units=hidden_size,name='input_rnn%d'%idx)
+            hidden_layer = tf.compat.v1.nn.rnn_cell.DropoutWrapper(cell=lstm_layer, output_keep_prob=self.keep_prob)
             hidden_layers.append(hidden_layer)
-        self.hidden_cell = tf.contrib.rnn.MultiRNNCell(cells=hidden_layers, state_is_tuple=True)  # RNN
+        self.hidden_cell = tf.compat.v1.nn.rnn_cell.BasicLSTMCell(cells=hidden_layers, state_is_tuple=True)  # RNN
 
         output_series = []
         self.state = self.hidden_cell.zero_state(self.batch_size, tf.float32)
@@ -156,9 +154,7 @@ class GIKT(object):
             Nn = tf.expand_dims(next_trans_embedding, 2)
             next_neighbor_num = 1
 
-
         if self.hist_neighbor_num != 0:
-
 
             Nh = tf.concat([tf.expand_dims(output_series, 2), self.hist_neighbors_features],
                            2)  # [self.batch_size,max_step,M+1,feature_trans_size]]
@@ -183,18 +179,12 @@ class GIKT(object):
             logits = tf.reshape(logits,
                                 [-1, self.max_step, 1 * next_neighbor_num])  # ====>[batch_size,max_step,Nu*Nv]
 
-
-
-
-
-
-        with tf.variable_scope('ni'):
-            w1 = tf.get_variable('atn_weights_1',[hidden_size, 1], initializer=tf.contrib.layers.xavier_initializer())
-            w2 = tf.get_variable('atn_weights_2',[hidden_size, 1],initializer=tf.contrib.layers.xavier_initializer())
+        with tf.compat.v1.variable_scope('ni'):
+            w1 = tf.get_variable('atn_weights_1',[hidden_size, 1], initializer=tf.initializers.glorot_uniform())
+            w2 = tf.get_variable('atn_weights_2',[hidden_size, 1], initializer=tf.initializers.glorot_uniform())
             b1 = tf.get_variable('atn_bias_1',[1],initializer=tf.zeros_initializer())
             b2 = tf.get_variable('atn_bias_2',[1],initializer=tf.zeros_initializer())
         if select_size > 3:
-
             f1 = tf.reshape(tf.matmul(tf.reshape(Nh, [-1, hidden_size]), w1) + b1,
                             [-1, self.max_step, self.hist_neighbor_num + 1, 1])
             f2 = tf.reshape(tf.matmul(tf.reshape(Nn, [-1, hidden_size]), w2) + b2,
@@ -230,7 +220,7 @@ class GIKT(object):
         self.global_step = tf.Variable(0, name="global_step", trainable=False)
         # self.lr = tf.Variable(0.0, trainable=False)
 
-        trainable_vars = tf.trainable_variables()
+        trainable_vars = tf.compat.v1.trainable_variables()
         self.grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, trainable_vars), 50)
         # optimizer = tf.train.AdamOptimizer(learning_rate=self.lr)
         # optimizer = tf.train.GradientDescentOptimizer(self.lr)
