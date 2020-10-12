@@ -71,21 +71,19 @@ class GIKT(object):
             next_input_neighbors = self.get_neighbors(self.n_hop,next_questions_index)##[[batch_size,seq_len],[batch_size,seq_len,q_neighbor_num],[batch_size,seq_len,q_neighbor_num*s_neighbor_num]
             next_aggregate_embedding,self.aggregators = self.aggregate(next_input_neighbors, self.next_questions_embedding)
 
-            feature_emb_size =  self.embedding_size
-            feature_trans_embedding  = tf.reshape(tf.layers.dense(tf.reshape(aggregate_embedding[0],[-1,feature_emb_size]),hidden_size, activation = tf.nn.relu, name = 'feature_layer', reuse = False), [-1,self.max_step, hidden_size]) #[batch_size,max_step,hidden_size]
-            next_trans_embedding  = tf.reshape(tf.layers.dense(tf.reshape(next_aggregate_embedding[0],[-1,feature_emb_size]),hidden_size, activation = tf.nn.relu, name = 'feature_layer', reuse = True), [-1,self.max_step, hidden_size]) #[batch_size,max_step,hidden_size]
+            feature_emb_size = self.embedding_size
+            feature_trans_embedding = tf.reshape(tf.compat.v1.layers.dense(tf.reshape(aggregate_embedding[0],[-1,feature_emb_size]),hidden_size, activation = tf.nn.relu, name = 'feature_layer', reuse = False), [-1,self.max_step, hidden_size]) #[batch_size,max_step,hidden_size]
+            next_trans_embedding  = tf.reshape(tf.compat.v1.layers.dense(tf.reshape(next_aggregate_embedding[0],[-1,feature_emb_size]),hidden_size, activation = tf.nn.relu, name = 'feature_layer', reuse = True), [-1,self.max_step, hidden_size]) #[batch_size,max_step,hidden_size]
 
         else:
             feature_emb_size =  self.embedding_size
-            feature_trans_embedding  = tf.reshape(tf.layers.dense(tf.reshape(self.input_questions_embedding,[-1,feature_emb_size]),hidden_size, activation = tf.nn.relu, name = 'feature_layer', reuse = False), [-1,self.max_step, hidden_size]) #[batch_size,max_step,hidden_size]
-            next_trans_embedding = tf.reshape(tf.layers.dense(tf.reshape(self.next_questions_embedding,[-1,feature_emb_size]),hidden_size, activation = tf.nn.relu, name = 'feature_layer', reuse = True), [-1,self.max_step, hidden_size]) #[batch_size,max_step,hidden_size]
+            feature_trans_embedding  = tf.reshape(tf.compat.v1.layers.dense(tf.reshape(self.input_questions_embedding,[-1,feature_emb_size]),hidden_size, activation = tf.nn.relu, name = 'feature_layer', reuse = False), [-1,self.max_step, hidden_size]) #[batch_size,max_step,hidden_size]
+            next_trans_embedding = tf.reshape(tf.compat.v1.layers.dense(tf.reshape(self.next_questions_embedding,[-1,feature_emb_size]),hidden_size, activation = tf.nn.relu, name = 'feature_layer', reuse = True), [-1,self.max_step, hidden_size]) #[batch_size,max_step,hidden_size]
 
             # # gnn
-            input_neighbors = self.get_neighbors(1,
-                                                 questions_index)  ##[[batch_size,seq_len],[batch_size,seq_len,q_neighbor_num],[batch_size,seq_len,q_neighbor_num*s_neighbor_num]
+            input_neighbors = self.get_neighbors(1, questions_index)  ##[[batch_size,seq_len],[batch_size,seq_len,q_neighbor_num],[batch_size,seq_len,q_neighbor_num*s_neighbor_num]
 
-            next_input_neighbors = self.get_neighbors(1,
-                                                      next_questions_index)  ##[[batch_size,seq_len],[batch_size,seq_len,q_neighbor_num],[batch_size,seq_len,q_neighbor_num*s_neighbor_num]
+            next_input_neighbors = self.get_neighbors(1, next_questions_index)  ##[[batch_size,seq_len],[batch_size,seq_len,q_neighbor_num],[batch_size,seq_len,q_neighbor_num*s_neighbor_num]
 
             next_aggregate_embedding = [next_trans_embedding,tf.reshape(tf.gather(self.feature_embedding, tf.reshape(next_input_neighbors[-1], [-1])),
                                             [self.batch_size, self.max_step, -1, self.embedding_size])]
@@ -93,7 +91,7 @@ class GIKT(object):
                                             [self.batch_size, self.max_step, -1, self.embedding_size])]
 
         input_fa_embedding = tf.reshape(tf.concat([feature_trans_embedding,input_answers_embedding],-1),[-1,hidden_size+self.embedding_size]) # embedding_size*2
-        input_trans_embedding = tf.reshape(tf.layers.dense(input_fa_embedding, hidden_size),
+        input_trans_embedding = tf.reshape(tf.compat.v1.layers.dense(input_fa_embedding, hidden_size),
                                             [-1, self.max_step, hidden_size])
 
         # create rnn cell
@@ -102,7 +100,7 @@ class GIKT(object):
             lstm_layer = tf.compat.v1.nn.rnn_cell.BasicLSTMCell(num_units=hidden_size,name='input_rnn%d'%idx)
             hidden_layer = tf.compat.v1.nn.rnn_cell.DropoutWrapper(cell=lstm_layer, output_keep_prob=self.keep_prob)
             hidden_layers.append(hidden_layer)
-        self.hidden_cell = tf.compat.v1.nn.rnn_cell.BasicLSTMCell(cells=hidden_layers, state_is_tuple=True)  # RNN
+        self.hidden_cell = tf.compat.v1.nn.rnn_cell.LSTMCell(num_units=hidden_size, state_is_tuple=True)  # RNN
 
         output_series = []
         self.state = self.hidden_cell.zero_state(self.batch_size, tf.float32)
@@ -172,7 +170,6 @@ class GIKT(object):
 
             Nh = tf.expand_dims(output_series, 2)  # [self.batch_size,max_step,1,feature_trans_size]
 
-
             logits = tf.reduce_sum(tf.expand_dims(Nh, 3) * tf.expand_dims(Nn, 2),
                                    axis=4)  # [-1,max_step,Nh,1,emb_size]*[-1,max_step,1,Nn,emb_size]
 
@@ -180,10 +177,10 @@ class GIKT(object):
                                 [-1, self.max_step, 1 * next_neighbor_num])  # ====>[batch_size,max_step,Nu*Nv]
 
         with tf.compat.v1.variable_scope('ni'):
-            w1 = tf.get_variable('atn_weights_1',[hidden_size, 1], initializer=tf.initializers.glorot_uniform())
-            w2 = tf.get_variable('atn_weights_2',[hidden_size, 1], initializer=tf.initializers.glorot_uniform())
-            b1 = tf.get_variable('atn_bias_1',[1],initializer=tf.zeros_initializer())
-            b2 = tf.get_variable('atn_bias_2',[1],initializer=tf.zeros_initializer())
+            w1 = tf.compat.v1.get_variable('atn_weights_1',[hidden_size, 1], initializer=tf.initializers.glorot_uniform())
+            w2 = tf.compat.v1.get_variable('atn_weights_2',[hidden_size, 1], initializer=tf.initializers.glorot_uniform())
+            b1 = tf.compat.v1.get_variable('atn_bias_1',[1],initializer=tf.zeros_initializer())
+            b2 = tf.compat.v1.get_variable('atn_bias_2',[1],initializer=tf.zeros_initializer())
         if select_size > 3:
             f1 = tf.reshape(tf.matmul(tf.reshape(Nh, [-1, hidden_size]), w1) + b1,
                             [-1, self.max_step, self.hist_neighbor_num + 1, 1])
@@ -226,7 +223,7 @@ class GIKT(object):
         # optimizer = tf.train.GradientDescentOptimizer(self.lr)
         # optimizer = tf.train.MomentumOptimizer(learning_rate=self.lr,momentum=0.95)
         # self.train_op = optimizer.apply_gradients(zip(self.grads, trainable_vars))
-        self.train_op = tf.train.AdamOptimizer(learning_rate=self.lr,
+        self.train_op = tf.compat.v1.train.AdamOptimizer(learning_rate=self.lr,
                                                beta1=0.9, beta2=0.999, epsilon=1e-8). \
             minimize(self.loss, global_step=self.global_step)
 
@@ -237,9 +234,11 @@ class GIKT(object):
     def hist_neighbor_sampler(self,input_embedding):
         zero_embeddings = tf.expand_dims(tf.zeros([self.batch_size,self.hidden_neurons[-1]],dtype=tf.float32),1)#[batch_size,1,hidden_size]
         input_embedding = tf.concat([input_embedding,zero_embeddings],1)#[batch_size,max_step+1,hidden_size]
-        #input_embedding:[batch_size,max_step,fa_trans_size]
-        temp_hist_index = tf.reshape(self.hist_neighbor_index,[-1,self.max_step*self.hist_neighbor_num]) #[self.batch_size, max_step*M]
-        hist_neighbors_features =tf.reshape(tf.batch_gather(input_embedding,temp_hist_index),[-1,self.max_step,self.hist_neighbor_num,input_embedding.shape[-1]])
+
+        # input_embedding:[batch_size,max_step,fa_trans_size]
+
+        temp_hist_index = tf.reshape(self.hist_neighbor_index,[-1,self.max_step*self.hist_neighbor_num]) # [self.batch_size, max_step*M]
+        hist_neighbors_features = tf.reshape(tf.gather(input_embedding,temp_hist_index),[-1,self.max_step,self.hist_neighbor_num,input_embedding.shape[-1]])
 
         #select last neigbor_num questions
 
@@ -254,7 +253,6 @@ class GIKT(object):
         q_similarity = tf.reduce_sum(next_q_emb*input_q_emb,-1)#[batch_size,ms,ms]
         molds = tf.expand_dims(mold_nextq,2)*tf.expand_dims(mold_inputq,1)#[bs,ms,ms]
         q_similarity = q_similarity/molds
-
 
         zero_embeddings = tf.expand_dims(tf.zeros([self.batch_size,self.hidden_neurons[-1]],dtype=tf.float32),1)#[batch_size,1,hidden_size]
         qa_emb = tf.concat([qa_emb, zero_embeddings], 1)#[batch_size,max_step+1,hidden_size]
@@ -276,8 +274,6 @@ class GIKT(object):
         q_similarity = tf.where(condition,q_similarity,tf.zeros([self.batch_size,self.max_step,self.max_step]))
         q_sim_index = tf.greater(q_similarity,0)#
 
-
-
         self.q_similarity = q_similarity
 
         temp_hist_index = tf.nn.top_k(q_similarity, self.hist_neighbor_num)[1]# [batch_size,ms,hist_num]
@@ -295,7 +291,7 @@ class GIKT(object):
         temp_hist_index = tf.reshape(temp_hist_index,[-1,self.max_step*self.hist_neighbor_num])
         #self.temp_hist_index = tf.reshape(temp_hist_index, [-1, self.max_step, self.hist_neighbor_num])
 
-        hist_neighbors_features =tf.reshape(tf.batch_gather(qa_emb, temp_hist_index), [-1, self.max_step, self.hist_neighbor_num, qa_emb.shape[-1]])
+        hist_neighbors_features =tf.reshape(tf.gather(qa_emb, temp_hist_index), [-1, self.max_step, self.hist_neighbor_num, qa_emb.shape[-1]])
 
         return hist_neighbors_features
 

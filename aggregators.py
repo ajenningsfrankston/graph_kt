@@ -43,10 +43,10 @@ class SumAggregator(Aggregator):
     def __init__(self, batch_size, seq_len,dim, dropout=0., act=tf.nn.relu, name=None):
         super(SumAggregator, self).__init__(batch_size,seq_len,dim, dropout, act, name)
 
-        with tf.variable_scope(self.name):
-            self.weights = tf.get_variable(
-                shape=[self.dim, self.dim], initializer=tf.contrib.layers.xavier_initializer(), name='weights')
-            self.bias = tf.get_variable(shape=[self.dim], initializer=tf.zeros_initializer(), name='bias')
+        with tf.compat.v1.variable_scope(self.name):
+            self.weights = tf.compat.v1.get_variable(
+                shape=[self.dim, self.dim], initializer=tf.initializers.glorot_uniform(), name='weights')
+            self.bias = tf.compat.v1.get_variable(shape=[self.dim], initializer=tf.zeros_initializer(), name='bias')
 
     def _call(self,self_vectors, neighbor_vectors, question_embeddings):
         # [batch_size,seq_len, -1, dim]
@@ -56,7 +56,7 @@ class SumAggregator(Aggregator):
 
         # [-1, dim]
         #output = tf.reshape(tf.reduce_mean(neighbors_agg,-2), [-1, self.dim])
-        output = tf.nn.dropout(output, keep_prob=self.dropout)
+        output = tf.nn.dropout(output, rate=self.dropout)
         output = tf.matmul(output, self.weights) + self.bias
 
         # [batch_size,seq_len, -1, dim]
@@ -65,15 +65,14 @@ class SumAggregator(Aggregator):
         return self.act(output)
 
 
-
 class ConcatAggregator(Aggregator):
     def __init__(self, batch_size,seq_len, dim, dropout=0., act=tf.nn.relu, name=None):
         super(ConcatAggregator, self).__init__(batch_size, seq_len,dim, dropout, act, name)
 
-        with tf.variable_scope(self.name):
-            self.weights = tf.get_variable(
-                shape=[self.dim * 2, self.dim], initializer=tf.contrib.layers.xavier_initializer(), name='weights')
-            self.bias = tf.get_variable(shape=[self.dim], initializer=tf.zeros_initializer(), name='bias')
+        with tf.compat.v1.variable_scope(self.name):
+            self.weights = tf.compat.v1.get_variable(
+                shape=[self.dim * 2, self.dim], initializer=tf.initializers.glorot_uniform(), name='weights')
+            self.bias = tf.compat.v1.get_variable(shape=[self.dim], initializer=tf.zeros_initializer(), name='bias')
 
     def _call(self, self_vectors, neighbor_vectors, question_embeddings):
         # [batch_size,seq_len, -1, dim]

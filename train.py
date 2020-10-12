@@ -129,7 +129,6 @@ def train(args,train_dkt):
                     binary_preds.append(binary_pred[seq_idx, 0:seq_len])
                     targets.append(target_answers[seq_idx, 0:seq_len])
 
-
             preds = np.concatenate(preds)
             binary_preds = np.concatenate(binary_preds)
             targets = np.concatenate(targets)
@@ -153,7 +152,7 @@ def save(global_step,sess,checkpoint_dir,saver):
 
 def save_model_dir(args):
     return '{}_{}_{}lr_{}hop_{}sn_{}qn_{}hn_{}nn_{}_{}bound_{}keep_{}'.format(args.dataset,
-                                                args.model,args.lr,args.n_hop,args.skill_neighbor_num,args.question_neighbor_num,args.hist_neighbor_num,\
+                                                args.model,args.lr,args.n_hop,args.skill_neighbor_num,args.question_neighbor_num,args.hist_neighbor_num,
                                                                      args.next_neighbor_num,args.sim_emb,args.att_bound,args.dropout_keep_probs,args.tag)
 
 
